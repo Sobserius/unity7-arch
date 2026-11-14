@@ -1,0 +1,58 @@
+name: build
+
+# Manual by default: a full source build takes 1-3 hours on GitHub's runners.
+# Push triggers are limited to packaging changes.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'pkgs/**'
+      - 'install.sh'
+      - 'makepkg.conf'
+      - '.github/workflows/build.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    timeout-minutes: 360
+    steps:
+      - name: prepare builder
+        run: |
+          pacman -Syu --noconfirm git github-cli curl
+          useradd -m builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 440 /etc/sudoers.d/builder
+
+      - uses: actions/checkout@v4
+
+      - name: build the chain
+        run: |
+          chown -R builder .
+          sudo -u builder ./install.sh --build --yes
+
+      - name: make the pacman database
+        run: |
+          cd repo
+          repo-add unity-arch.db.tar.gz ./*.pkg.tar.zst
+          # repo-add leaves symlinks, releases need real files
+          for f in unity-arch.db unity-arch.files; do
+            cp --remove-destination "$(readlink -f "$f")" "$f"
+          done
+          ls -la
+
+      - name: publish to the repo release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view repo >/dev/null 2>&1 ||
+            gh release create repo --title 'pacman repo' \
+              --notes 'Binary packages built from this repository. See the README for the pacman.conf entry.'
+          gh release upload repo repo/*.pkg.tar.zst \
+            repo/unity-arch.db repo/unity-arch.db.tar.gz \
+            repo/unity-arch.files repo/unity-arch.files.tar.gz --clobber

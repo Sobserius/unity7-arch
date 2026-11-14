@@ -1,0 +1,46 @@
+# Maintainer: Charlie <dev.charlie@akao.au>
+
+pkgname=libindicator-gtk3
+_name=libindicator
+_ver=16.10.0
+_snap=18.04.20180321.1
+pkgver=${_ver}.${_snap}
+pkgrel=2
+pkgdesc='shared library for the ubuntu indicators, gtk3 flavour'
+arch=('x86_64')
+url='https://launchpad.net/libindicator'
+license=('GPL-3.0-only')
+depends=('gtk3' 'ido')
+makedepends=('glib2-devel' 'gnome-common' 'intltool' 'gtk-doc')
+# arch's libindicator is the same soname without the ido factory patch, don't let pacman swap it in
+provides=('libindicator3' 'libindicator' 'indicator-common')
+conflicts=('libindicator')
+source=("${_name}_${_ver}+${_snap}.orig.tar.gz::https://launchpad.net/ubuntu/+archive/primary/+files/${_name}_${_ver}+${_snap}.orig.tar.gz"
+        'libindicator-ido-menu-items.patch')
+sha256sums=('0029ac3aa8d5a339de252f66209b40c12e5bfa9072221b9b32d07844273f62fd'
+            '2159393f813da09e7e91e9e7e5f29964fdf10b2d10721326b41c15dde5785c4d')
+noextract=("${_name}_${_ver}+${_snap}.orig.tar.gz")
+
+prepare() {
+  mkdir -p "${_name}"
+  tar xzf "${_name}_${_ver}+${_snap}.orig.tar.gz" -C "${_name}"
+  cd "${_name}"
+  patch -p1 -i "${srcdir}/libindicator-ido-menu-items.patch"
+  NOCONFIGURE=1 ./autogen.sh
+}
+
+build() {
+  cd "${_name}"
+  # Makefile.am hardcodes -Werror and glib's deprecated macros are pragma warnings
+  # with no option to switch off, so drop the deprecation pragmas instead
+  ./configure --prefix=/usr --disable-static --with-gtk=3 --disable-tests \
+    CFLAGS="${CFLAGS} -DGLIB_DISABLE_DEPRECATION_WARNINGS"
+  make
+}
+
+package() {
+  cd "${_name}"
+  # two install rules ship the same headers, in parallel they trip over each other
+  make -j1 DESTDIR="${pkgdir}" install
+  rm -f "${pkgdir}"/usr/lib/libdummy-indicator*
+}

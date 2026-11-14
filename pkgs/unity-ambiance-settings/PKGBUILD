@@ -1,0 +1,17 @@
+# Maintainer: Charlie <dev.charlie@akao.au>
+
+pkgname=unity-ambiance-settings
+pkgver=1
+pkgrel=2
+pkgdesc='switches the unity look from yaru to the classic ambiance one, gschema override only'
+arch=('any')
+url='https://github.com/unity-arch/packages'
+license=('GPL-3.0-only')
+depends=('glib2' 'light-themes' 'ubuntu-mono' 'humanity-icon-theme' 'ttf-ubuntu-font-family'
+         'ubuntu-wallpapers' 'xcursor-dmz' 'gtk-engine-murrine')
+source=('25_unity-ambiance.gschema.override')
+sha256sums=('66aaae3aa4e994a91a84ac95329898f6c7767343c6928df27fba28d4ac08ac86')
+
+package() {
+  install -Dm644 "${srcdir}/25_unity-ambiance.gschema.override" -t "${pkgdir}/usr/share/glib-2.0/schemas"
+}

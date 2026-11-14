@@ -1,0 +1,23 @@
+repo/
+upstream/
+ref/
+logs/
+pkgs/*/src/
+pkgs/*/pkg/
+pkgs/*/*.tar.*
+pkgs/*/*.deb
+pkgs/*/*.diff
+pkgs/*/*.diff.gz
+pkgs/*/build.log
+# makepkg's bare git clones for git sources
+pkgs/*/*/HEAD
+pkgs/*/*/packed-refs
+pkgs/*/*/objects/
+pkgs/*/*/refs/
+pkgs/*/*/hooks/
+pkgs/*/*/info/
+pkgs/*/*/config
+pkgs/*/*/description
+pkgs/*/*/FETCH_HEAD
+pkgs/*/*/shallow
+mirrors/
