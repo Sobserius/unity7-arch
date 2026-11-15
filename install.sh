@@ -311,6 +311,7 @@ build_packages() {
 PREBUILT_BASE=${UNITY7_ARCH_PREBUILT_URL:-https://github.com/Sobserius/unity7-arch/releases/download/repo}
 PREBUILT_DB=$ROOT/repo/unity-arch.db
 declare -a PREBUILT_FILES=() PREBUILT_NAMES=()
+declare -A PREBUILT_SHA=()
 
 record_manifest_names() {
   (( INSTALL_PACKAGES )) || return 0
@@ -332,7 +333,7 @@ fetch_prebuilt() {
   have curl || die "curl is required to download prebuilt packages"
   mkdir -p "$ROOT/repo"
 
-  msg "downloading the package database from GitHub"
+  msg "downloading the package database"
   if ! curl -fsSL --retry 3 --connect-timeout 15 -o "$PREBUILT_DB.part" \
         "$PREBUILT_BASE/unity-arch.db"; then
     rm -f "$PREBUILT_DB.part"
@@ -347,14 +348,28 @@ fetch_prebuilt() {
   ((${#PREBUILT_FILES[@]})) ||
     die "the downloaded database lists no packages (corrupt download?)"
 
-  local f
+  # repo/ is kept between runs, so check cached files against the checksums in
+  # the database instead of trusting whatever is on disk
+  local f sum
+  while read -r f sum; do
+    [[ -n $f && -n $sum ]] && PREBUILT_SHA[$f]=$sum
+  done < <(db_desc | awk '
+    /^%FILENAME%$/ { getline fn }
+    /^%SHA256SUM%$/ { getline sum; if (fn != "" && sum != "") print fn, sum }
+  ')
+
   for f in "${PREBUILT_FILES[@]}"; do
-    if [[ -s $ROOT/repo/$f ]]; then
+    if [[ -s $ROOT/repo/$f ]] && [[ $(sha256sum "$ROOT/repo/$f" | cut -d' ' -f1) == "${PREBUILT_SHA[$f]:-}" ]]; then
       continue
     fi
     msg "fetch   $f"
     curl -fsSL --retry 3 --connect-timeout 15 -o "$ROOT/repo/$f.part" \
       "$PREBUILT_BASE/$f" || { rm -f "$ROOT/repo/$f.part"; die "download failed: $f"; }
+    if [[ -n ${PREBUILT_SHA[$f]:-} ]] &&
+       [[ $(sha256sum "$ROOT/repo/$f.part" | cut -d' ' -f1) != "${PREBUILT_SHA[$f]}" ]]; then
+      rm -f "$ROOT/repo/$f.part"
+      die "checksum mismatch for $f (mirror out of sync?)"
+    fi
     mv "$ROOT/repo/$f.part" "$ROOT/repo/$f"
   done
 }
