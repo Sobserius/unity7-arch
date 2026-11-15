@@ -1,0 +1,31 @@
+diff --git a/src/backend-dbus/actions.c b/src/backend-dbus/actions.c
+index 7f3fd38..9a6f5ad 100644
+--- a/src/backend-dbus/actions.c
++++ b/src/backend-dbus/actions.c
+@@ -594,6 +594,25 @@ logout_now (IndicatorSessionActionsDbus * self)
+   if (!logout_now_unity(self) && !logout_now_gnome_session_manager(self))
+     {
+       g_critical("%s can't logout: no Unity nor GNOME session proxy", G_STRFUNC);
+     }
++
++  /* Cinnamon-session's logout handling can hang in this Unity session setup and
++     leave the X session stuck on the desktop wallpaper. As a safety net, ask
++     logind to terminate the session if it is still alive after a short grace
++     period so control returns to the greeter. */
++  {
++    const char * session_id = g_getenv ("XDG_SESSION_ID");
++
++    if ((session_id != NULL) && (session_id[0] != '\0'))
++      {
++        GError * err = NULL;
++        char * cmd = g_strdup_printf ("sh -c 'sleep 2; exec loginctl terminate-session %s'", session_id);
++
++        if (!g_spawn_command_line_async (cmd, &err))
++          log_and_clear_error (&err, G_STRLOC, G_STRFUNC);
++
++        g_free (cmd);
++      }
++  }
+ }
+ 
+ static void
