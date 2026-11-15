@@ -2,7 +2,7 @@
 
 pkgname=unity-session
 pkgver=49.4
-pkgrel=4
+pkgrel=5
 _commit=32c2fd569b0d51e40bd3ec875e77f0261a744d03
 pkgdesc='session files and systemd targets for the unity desktop'
 arch=('any')
@@ -18,7 +18,7 @@ source=("git+https://github.com/unity-arch/unity-session.git#commit=${_commit}"
         'unity-session.sh'
         'polkit-gnome-authentication-agent-1.desktop')
 sha256sums=('SKIP'
-            '6c68a3760533244a416b2c390660c0daf775c8b9b14dcc8e4fd65f6831b5930d'
+            'f062ab3240ddca4227db0063cc285957f7f682b8a4a73bcfcf9d04bcac5ec4b9'
             '4328e6e85771ac3db43edca18479a467135ff9d265183eff67d21a887e3572a6')
 
 package() {
