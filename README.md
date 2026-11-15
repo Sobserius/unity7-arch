@@ -15,7 +15,7 @@ LightDM, and can cleanly undo everything.
   │                                                              │
   │  1) Install Unity 7 (build from source)                      │
   │  2) Uninstall Unity 7                                        │
-  │  3) Build / reinstall packages (no desktop config)           │
+  │  3) Build packages only (no desktop configuration)           │
   │  4) Choose / change the login greeter                        │
   │  5) Show status                                              │
   │  q) Quit                                                     │
@@ -47,7 +47,8 @@ touched and remain selectable.
 - Arch Linux, `x86_64`
 - `base-devel` and `git` (`sudo pacman -S --needed base-devel git`)
 - An OpenGL-capable GPU (Intel, AMD or NVIDIA with the proprietary driver)
-- ~8–12 GB of free disk while building, 1–3 hours
+- ~8–12 GB of free disk while building; 1–3 hours on a slow machine,
+  about 40 minutes on a 12-core desktop
 - `sudo` (the installer prompts normally; nothing is stored)
 
 ## Quick start

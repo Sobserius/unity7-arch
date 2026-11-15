@@ -304,6 +304,29 @@ install_lightdm() {
   fi
 }
 
+# Greeters this script can provide. unity-greeter is built from this repo; the
+# others live in [extra] and are offered when they are not installed yet.
+GREETER_CANDIDATES=(unity-greeter lightdm-gtk-greeter lightdm-slick-greeter lightdm-webkit2-greeter)
+
+greeter_installed() {
+  [[ -f /usr/share/xgreeters/$1.desktop ]]
+}
+
+greeter_desc() {
+  local f=/usr/share/xgreeters/$1.desktop
+  if [[ -f $f ]]; then
+    sed -n 's/^Name=//p' "$f" | head -n1
+    return
+  fi
+  case $1 in
+    unity-greeter)           printf 'Unity Greeter' ;;
+    lightdm-gtk-greeter)     printf 'LightDM GTK+ Greeter' ;;
+    lightdm-slick-greeter)   printf 'LightDM Slick Greeter' ;;
+    lightdm-webkit2-greeter) printf 'LightDM WebKit2 Greeter' ;;
+    *)                       printf '%s' "$1" ;;
+  esac
+}
+
 list_greeters() {
   local f name desc
   for f in /usr/share/xgreeters/*.desktop; do
@@ -314,8 +337,14 @@ list_greeters() {
   done | sort
 }
 
-greeter_installed() {
-  [[ -f /usr/share/xgreeters/$1.desktop ]]
+# installed greeters first, then the official ones we can install on demand
+list_greeter_choices() {
+  local name
+  list_greeters
+  for name in "${GREETER_CANDIDATES[@]}"; do
+    greeter_installed "$name" && continue
+    printf '%s\t%s (not installed)\n' "$name" "$(greeter_desc "$name")"
+  done
 }
 
 install_greeter() {
@@ -323,7 +352,7 @@ install_greeter() {
   greeter_installed "$g" && return 0
   case $g in
     unity-greeter)
-      # shipped by this repo; if missing, the install is incomplete
+      # built by this repo, so a missing one means the install is incomplete
       die "unity-greeter is not installed; run ./install.sh --install first"
       ;;
     lightdm-gtk-greeter|lightdm-slick-greeter|lightdm-webkit2-greeter)
@@ -337,11 +366,16 @@ install_greeter() {
 }
 
 pick_greeter() {
-  local choice default_idx=1 idx=0 name desc
-  local -a names=() lines=()
+  local choice default_idx=1 idx name desc
+  local -a names=() descs=()
 
-  mapfile -t lines < <(list_greeters)
-  if ((${#lines[@]} == 0)); then
+  while IFS=$'\t' read -r name desc; do
+    [[ -n $name ]] || continue
+    names+=("$name")
+    descs+=("${desc:-$name}")
+  done < <(list_greeter_choices)
+
+  if ((${#names[@]} == 0)); then
     warn "no greeter found in /usr/share/xgreeters"
     printf 'unity-greeter\n'
     return
@@ -349,13 +383,9 @@ pick_greeter() {
 
   {
     printf '%sAvailable greeters:%s\n' "$B" "$N"
-    for name in "${!lines[@]}"; do
-      desc=${lines[$name]#*$'\t'}
-      name=${lines[$name]%%$'\t'*}
-      names+=("$name")
-      ((++idx))
-      [[ $name == unity-greeter ]] && default_idx=$idx
-      printf '  %2d) %-28s %s\n' "$idx" "$name" "$desc"
+    for idx in "${!names[@]}"; do
+      [[ ${names[$idx]} == unity-greeter ]] && default_idx=$((idx + 1))
+      printf '  %2d) %-28s %s\n' "$((idx + 1))" "${names[$idx]}" "${descs[$idx]}"
     done
   } >&2
 
@@ -740,13 +770,18 @@ while (($#)); do
     -i|--install)   ACTION=install ;;
     -u|--uninstall) ACTION=uninstall ;;
     -b|--build)     ACTION=build ;;
-    -g|--greeter)   ACTION=greeter ;;
     -s|--status)    ACTION=status ;;
     -y|--yes)       ASSUME_YES=1 ;;
     --keep-dm)      KEEP_DM=1 ;;
     --rebuild)      REBUILD=1 ;;
-    --greeter=*)    GREETER=${1#*=} ;;
-    --greeter)      shift; [[ $# -gt 0 ]] || die "--greeter needs a value"; GREETER=$1 ;;
+    --greeter=*)    GREETER=${1#*=}; [[ -n $ACTION ]] || ACTION=greeter ;;
+    --greeter)
+      shift
+      [[ $# -gt 0 ]] || die "--greeter needs a value"
+      GREETER=$1
+      [[ -n $ACTION ]] || ACTION=greeter
+      ;;
+    -g)             [[ -n $ACTION ]] || ACTION=greeter ;;
     --list)
       discover_packages
       build_order

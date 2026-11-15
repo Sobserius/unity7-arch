@@ -13,6 +13,7 @@ cursor-size = 24
 [org.gnome.desktop.wm.preferences:Unity]
 theme = "Ambiance"
 titlebar-font = "Ubuntu Bold 11"
+button-layout = "close,minimize,maximize:"
 
 [org.gnome.desktop.background:Unity]
 picture-uri = "file:///usr/share/backgrounds/warty-final-ubuntu.png"
