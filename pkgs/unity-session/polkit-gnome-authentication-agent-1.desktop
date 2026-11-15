@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=PolicyKit Authentication Agent
+Comment=Authentication agent for PolicyKit
+Exec=/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+Terminal=false
+NoDisplay=true
+# only in Unity: GNOME Shell and Cinnamon ship their own agent and would clash
+OnlyShowIn=Unity;Unity7;
+X-GNOME-Autostart-enabled=true

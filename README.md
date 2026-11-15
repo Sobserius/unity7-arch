@@ -194,6 +194,11 @@ repo/                   built packages (gitignored)
   back to a blank desktop.
 - **No Unity session in the greeter?** Check that `unity-session` is installed and
   `/usr/share/xsessions/unity.desktop` exists. `./install.sh --status` shows this.
+- **No password dialog for admin actions** (Nemo "Open as Root", GNOME Disks,
+  mounting drives)? The Unity session needs a running polkit agent. `unity-session`
+  ships the `polkit-gnome` autostart entry, so it starts at login; if you upgraded
+  from an older build, run `sudo pacman -S unity-session` from this repo, or start
+  `/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1` once.
 - **Nyarch/CachyOS flags**: `makepkg.conf` pins generic `-march=x86-64` so packages
   built on tuned systems stay portable.
 - **Package build failure**: the exact log path is printed. Most failures are a

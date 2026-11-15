@@ -484,6 +484,7 @@ verify_install() {
     /usr/share/icons/Humanity
     /usr/share/icons/ubuntu-mono-dark
     /usr/share/backgrounds/warty-final-ubuntu.png
+    /etc/xdg/autostart/polkit-gnome-authentication-agent-1.desktop
     "$LIGHTDM_CONF"
   )
   local p

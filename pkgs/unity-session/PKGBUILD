@@ -2,7 +2,7 @@
 
 pkgname=unity-session
 pkgver=49.4
-pkgrel=3
+pkgrel=4
 _commit=32c2fd569b0d51e40bd3ec875e77f0261a744d03
 pkgdesc='session files and systemd targets for the unity desktop'
 arch=('any')
@@ -10,13 +10,16 @@ url='https://gitlab.com/ubuntu-unity/unity/unity-session'
 license=('GPL-2.0-or-later')
 # upstream runs the session through cinnamon-session since gnome-session dropped x11,
 # cinnamon itself is only here for the org.cinnamon.sounds schema the logout path reads
-depends=('cinnamon-session' 'cinnamon-settings-daemon' 'cinnamon' 'unity-settings-daemon' 'systemd' 'dbus')
+depends=('cinnamon-session' 'cinnamon-settings-daemon' 'cinnamon' 'unity-settings-daemon' 'systemd' 'dbus'
+         'polkit-gnome')
 optdepends=('nemo: desktop icons and the change background action'
             'lightdm: the shipped lightdm config selects unity as default session')
 source=("git+https://github.com/unity-arch/unity-session.git#commit=${_commit}"
-        'unity-session.sh')
+        'unity-session.sh'
+        'polkit-gnome-authentication-agent-1.desktop')
 sha256sums=('SKIP'
-            '6c68a3760533244a416b2c390660c0daf775c8b9b14dcc8e4fd65f6831b5930d')
+            '6c68a3760533244a416b2c390660c0daf775c8b9b14dcc8e4fd65f6831b5930d'
+            '4328e6e85771ac3db43edca18479a467135ff9d265183eff67d21a887e3572a6')
 
 package() {
   cd "${pkgname}"
@@ -30,5 +33,9 @@ package() {
   install -Dm644 21_ubuntu-unity.gschema.override -t "${pkgdir}/usr/share/glib-2.0/schemas"
   install -Dm644 50-unity.conf -t "${pkgdir}/usr/share/lightdm/lightdm.conf.d"
   install -Dm644 nemo-unity-autostart.desktop -t "${pkgdir}/etc/xdg/autostart"
+  # polkit-gnome ships no autostart entry, without this there is no agent in the
+  # unity session and every pkexec/polkit dialog (nemo root, disks, ...) fails
+  install -Dm644 "${srcdir}/polkit-gnome-authentication-agent-1.desktop" \
+    "${pkgdir}/etc/xdg/autostart/polkit-gnome-authentication-agent-1.desktop"
   install -Dm644 ./*.nemo_action -t "${pkgdir}/usr/share/nemo/actions"
 }
