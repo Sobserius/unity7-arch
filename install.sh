@@ -311,7 +311,7 @@ build_packages() {
 PREBUILT_BASE=${UNITY7_ARCH_PREBUILT_URL:-https://github.com/Sobserius/unity7-arch/releases/download/repo}
 PREBUILT_DB=$ROOT/repo/unity-arch.db
 declare -a PREBUILT_FILES=() PREBUILT_NAMES=()
-declare -A PREBUILT_SHA=()
+declare -A PREBUILT_SHA=() PREBUILT_NAME=() PREBUILT_VER=()
 
 record_manifest_names() {
   (( INSTALL_PACKAGES )) || return 0
@@ -349,29 +349,72 @@ fetch_prebuilt() {
     die "the downloaded database lists no packages (corrupt download?)"
 
   # repo/ is kept between runs, so check cached files against the checksums in
-  # the database instead of trusting whatever is on disk
-  local f sum
+  # the database instead of trusting whatever is on disk. the same pass records
+  # the name and version so an update only downloads what actually changed.
+  local f sum name ver cur
   while read -r f sum; do
     [[ -n $f && -n $sum ]] && PREBUILT_SHA[$f]=$sum
   done < <(db_desc | awk '
     /^%FILENAME%$/ { getline fn }
     /^%SHA256SUM%$/ { getline sum; if (fn != "" && sum != "") print fn, sum }
   ')
+  while read -r f name ver; do
+    [[ -n $f ]] || continue
+    PREBUILT_NAME[$f]=$name
+    PREBUILT_VER[$f]=$ver
+  done < <(db_desc | awk '
+    /^%FILENAME%$/ { fn = nm = vs = ""; field = 1; next }
+    /^%NAME%$/     { field = 2; next }
+    /^%VERSION%$/  { field = 3; next }
+    /^%/           { field = 0; next }
+    field == 1 && NF { fn = $0 }
+    field == 2 && NF { nm = $0 }
+    field == 3 && NF {
+      vs = $0
+      if (fn != "" && nm != "") { print fn, nm, vs }
+      field = 0
+    }
+  ')
 
+  local -a needed=()
   for f in "${PREBUILT_FILES[@]}"; do
+    name=${PREBUILT_NAME[$f]:-}
+    ver=${PREBUILT_VER[$f]:-}
+    # already installed at the version in the database: nothing to download
+    if [[ -n $name && -n $ver ]] && cur=$(pacman -Q "$name" 2>/dev/null); then
+      [[ ${cur#* } == "$ver" ]] && continue
+    fi
     if [[ -s $ROOT/repo/$f ]] && [[ $(sha256sum "$ROOT/repo/$f" | cut -d' ' -f1) == "${PREBUILT_SHA[$f]:-}" ]]; then
+      needed+=("$f")
       continue
     fi
     msg "fetch   $f"
-    curl -fsSL --retry 3 --connect-timeout 15 -o "$ROOT/repo/$f.part" \
-      "$PREBUILT_BASE/$f" || { rm -f "$ROOT/repo/$f.part"; die "download failed: $f"; }
+    if ! fetch_prebuilt_file "$f"; then
+      rm -f "$ROOT/repo/$f.part"
+      die "download failed: $f"
+    fi
     if [[ -n ${PREBUILT_SHA[$f]:-} ]] &&
        [[ $(sha256sum "$ROOT/repo/$f.part" | cut -d' ' -f1) != "${PREBUILT_SHA[$f]}" ]]; then
       rm -f "$ROOT/repo/$f.part"
       die "checksum mismatch for $f (mirror out of sync?)"
     fi
     mv "$ROOT/repo/$f.part" "$ROOT/repo/$f"
+    needed+=("$f")
   done
+  PREBUILT_FILES=("${needed[@]}")
+}
+
+# GitHub rewrites characters that are not allowed in release asset names, and
+# the epoch colon in names like compiz-ubuntu-1:0.9.14.2-... becomes a dot. The
+# database still lists the original name, so retry with the sanitized one.
+fetch_prebuilt_file() {
+  local f=$1 alt=${1//:/.}
+  # the first attempt is expected to 404 for epoch names, keep it quiet
+  curl -fsSL --retry 3 --connect-timeout 15 -o "$ROOT/repo/$f.part" \
+    "$PREBUILT_BASE/$f" 2>/dev/null && return 0
+  [[ $alt != "$f" ]] || return 1
+  curl -fsSL --retry 3 --connect-timeout 15 -o "$ROOT/repo/$f.part" \
+    "$PREBUILT_BASE/$alt"
 }
 
 show_prebuilt_changes() {
@@ -434,11 +477,19 @@ install_prebuilt_packages() {
     pkgs+=("$ROOT/repo/$f")
   done
 
+  # record every package in the release, including ones that were already up to
+  # date, so uninstall knows about the whole set
+  record_manifest_names "${PREBUILT_NAMES[@]}"
+
+  if ((${#pkgs[@]} == 0)); then
+    msg "nothing to install"
+    return 0
+  fi
+
   install_prebuilt_deps
 
   msg "installing ${#pkgs[@]} prebuilt packages"
   sudo pacman -U --needed --noconfirm "${pkgs[@]}"
-  record_manifest_names "${PREBUILT_NAMES[@]}"
 }
 
 do_update() {

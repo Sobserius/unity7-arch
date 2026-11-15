@@ -39,6 +39,13 @@ jobs:
       - name: make the pacman database
         run: |
           cd repo
+          # GitHub replaces ':' in release asset names with '.', so store the
+          # sanitized file name in the database too; the epoch stays in the
+          # package metadata, only the file name changes
+          for f in *.pkg.tar.zst; do
+            [[ $f == *:* ]] || continue
+            mv -- "$f" "${f//:/.}"
+          done
           repo-add unity-arch.db.tar.gz ./*.pkg.tar.zst
           # repo-add leaves symlinks, releases need real files
           for f in unity-arch.db unity-arch.files; do
