@@ -1,27 +1,33 @@
 # Maintainer: Charlie <dev.charlie@akao.au>
 
 pkgname=ubuntu-wallpapers
-pkgver=26.04.2
+# 17.04 (zesty) is the last Ubuntu release that shipped Unity 7 by default, so
+# its wallpaper is the one that matches this desktop. newer releases replaced it
+# with the gnome era art, and only 17.04 still carries the unity wallpaper.
+pkgver=17.04.1
 pkgrel=1
-pkgdesc='the default ubuntu desktop wallpaper and its gnome-background-properties entry'
+pkgdesc='the zesty (17.04) ubuntu desktop wallpaper and its gnome-background-properties entry'
 arch=('any')
-url='https://launchpad.net/ubuntu-wallpapers'
+url='https://launchpad.net/ubuntu/+source/ubuntu-wallpapers'
 license=('CC-BY-SA-3.0')
-makedepends=('python')
+makedepends=('python' 'libarchive')
 # not the launchpad tree, that one is an 890mb orig tarball of every community
-# wallpaper ubuntu has ever shipped. this binary is just the default ones
-source=("https://archive.ubuntu.com/ubuntu/pool/main/u/${pkgname}/${pkgname}_${pkgver}_all.deb")
-sha256sums=('d7f7acea3bb3dcd547a4be8aa5515b63c9e2a66e110d7a52ea98323f9c14b68e')
-noextract=("${pkgname}_${pkgver}_all.deb")
+# wallpaper ubuntu has ever shipped. this binary is just the default ones.
+# zesty is archived, so it lives on old-releases rather than archive.ubuntu.com
+source=("https://old-releases.ubuntu.com/ubuntu/pool/main/u/${pkgname}/${pkgname}_${pkgver}-0ubuntu1_all.deb")
+sha256sums=('6908b9eceac95861258434c06afe81c647047b92cc0e8c2410b85c263f454ac9')
+noextract=("${pkgname}_${pkgver}-0ubuntu1_all.deb")
 
 package() {
-  bsdtar -xOf "${pkgname}_${pkgver}_all.deb" data.tar.zst | bsdtar -xf - -C "${pkgdir}" \
+  local deb="${pkgname}_${pkgver}-0ubuntu1_all.deb" data
+  data=$(bsdtar -tf "$deb" | grep -m1 '^data\.tar')
+  bsdtar -xOf "$deb" "$data" | bsdtar -xf - -C "${pkgdir}" \
     ./usr/share/backgrounds/warty-final-ubuntu.png \
-    ./usr/share/backgrounds/ubuntu-wallpaper-d.png \
     ./usr/share/gnome-background-properties/ubuntu-wallpapers.xml \
     ./usr/share/doc/${pkgname}/copyright
-  # the greyscale entry points at a png that only ships in the per release binary,
-  # drop any entry whose file isn't here so the picker has no dead thumbnails
+  # the greyscale entry points at a png that ships in the separate per release
+  # package, drop any entry whose file isn't here so the picker has no dead
+  # thumbnails
   python - "${pkgdir}" <<'EOF'
 import os, sys
 import xml.etree.ElementTree as et

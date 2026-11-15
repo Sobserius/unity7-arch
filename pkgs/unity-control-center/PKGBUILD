@@ -8,7 +8,7 @@ _commit=a92a472e28e1aeb59b30e7eae7736643feaee99f
 # not this package (debian/rules hardcodes it the same way)
 _unityver=7.7.1
 pkgver=${_ver}.${_snap}
-pkgrel=1
+pkgrel=2
 pkgdesc='settings panels for the unity desktop'
 arch=('x86_64')
 url='https://gitlab.com/ubuntu-unity/unity/unity-control-center'
@@ -28,10 +28,12 @@ optdepends=('cups-pk-helper: manage printers without running the panel as root'
 provides=('libunity-control-center.so')
 source=("git+https://github.com/unity-arch/unity-control-center.git#commit=${_commit}"
         'revert-alt-tap-shortcut.patch'
-        'region-panel-drop-language-tools.patch')
+        'region-panel-drop-language-tools.patch'
+        'appearance-theme-choices.patch')
 sha256sums=('SKIP'
             '4df25cb81a8977761f2782747fa17b379c05202ffb6d4ff397ef4307107efd5d'
-            '7850caf6b0c71aaeed1e3c1c0afa09faa01e007640159214209732c5138eb18e')
+            '7850caf6b0c71aaeed1e3c1c0afa09faa01e007640159214209732c5138eb18e'
+            '90e777eae2f19679b6bc9407313112242b458533bfc3000e2e911711ae6eaa66')
 
 prepare() {
   cd "${pkgname}"
@@ -45,6 +47,9 @@ prepare() {
   fi
   patch -Np1 -i "${srcdir}/revert-alt-tap-shortcut.patch"
   patch -Np1 -i "${srcdir}/region-panel-drop-language-tools.patch"
+  # the snapshot hardcodes Yaru in both the theme and the icon-colour selector,
+  # so on a system without the (AUR) Yaru themes both lists are empty
+  patch -Np1 -i "${srcdir}/appearance-theme-choices.patch"
   NOCONFIGURE=1 ./autogen.sh
 }
 

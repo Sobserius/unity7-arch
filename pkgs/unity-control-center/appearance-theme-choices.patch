@@ -1,0 +1,24 @@
+--- a/panels/appearance/cc-appearance-panel.c
++++ b/panels/appearance/cc-appearance-panel.c
+@@ -1537,8 +1537,8 @@
+   g_strfreev(uris);
+ }
+ 
+-static gchar *themes_id[] = { "Yaru", "Yaru-dark" };
+-static gchar *themes_name[] = { "Yaru", "Yaru-dark" };
++static gchar *themes_id[] = { "Ambiance", "Radiance", "Yaru", "Yaru-dark" };
++static gchar *themes_name[] = { "Ambiance", "Radiance", "Yaru", "Yaru-dark" };
+ 
+ static gboolean
+ get_theme_data (const gchar *theme_name,
+@@ -1674,8 +1674,8 @@
+ 		      G_CALLBACK (theme_selection_changed), self);
+ }
+ 
+-static gchar *colors_id[] = { "Yaru", "Yaru-dark", "Yaru-bark", "Yaru-bark-dark", "Yaru-blue", "Yaru-blue-dark", "Yaru-magenta", "Yaru-magenta-dark", "Yaru-olive", "Yaru-olive-dark", "Yaru-prussiangreen", "Yaru-prussiangreen-dark", "Yaru-purple", "Yaru-purple-dark", "Yaru-red", "Yaru-red-dark", "Yaru-sage", "Yaru-sage-dark", "Yaru-viridian", "Yaru-viridian-dark" };
+-static gchar *colors_name[] = { "Default (Yaru)", "Default (Yaru-dark)", "Bark (Yaru)", "Bark (Yaru-dark)", "Blue (Yaru)", "Blue (Yaru-dark)",  "Magenta (Yaru)", "Magenta (Yaru-dark)", "Olive (Yaru)", "Olive (Yaru-dark)", "Prussian Green (Yaru)", "Prussian Green (Yaru-dark)", "Purple (Yaru)", "Purple (Yaru-dark)", "Red (Yaru)", "Red (Yaru-dark)", "Sage (Yaru)", "Sage (Yaru-dark)", "Viridian (Yaru)", "Viridian (Yaru-dark)" };
++static gchar *colors_id[] = { "ubuntu-mono-dark", "ubuntu-mono-light", "Humanity", "Humanity-Dark", "Yaru", "Yaru-dark", "Yaru-bark", "Yaru-bark-dark", "Yaru-blue", "Yaru-blue-dark", "Yaru-magenta", "Yaru-magenta-dark", "Yaru-olive", "Yaru-olive-dark", "Yaru-prussiangreen", "Yaru-prussiangreen-dark", "Yaru-purple", "Yaru-purple-dark", "Yaru-red", "Yaru-red-dark", "Yaru-sage", "Yaru-sage-dark", "Yaru-viridian", "Yaru-viridian-dark" };
++static gchar *colors_name[] = { "Ubuntu Mono Dark", "Ubuntu Mono Light", "Humanity", "Humanity Dark", "Default (Yaru)", "Default (Yaru-dark)", "Bark (Yaru)", "Bark (Yaru-dark)", "Blue (Yaru)", "Blue (Yaru-dark)",  "Magenta (Yaru)", "Magenta (Yaru-dark)", "Olive (Yaru)", "Olive (Yaru-dark)", "Prussian Green (Yaru)", "Prussian Green (Yaru-dark)", "Purple (Yaru)", "Purple (Yaru-dark)", "Red (Yaru)", "Red (Yaru-dark)", "Sage (Yaru)", "Sage (Yaru-dark)", "Viridian (Yaru)", "Viridian (Yaru-dark)" };
+ 
+ static gboolean
+ check_icon_exists (const gchar *icon_name)

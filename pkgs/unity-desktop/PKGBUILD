@@ -2,7 +2,7 @@
 
 pkgname=unity-desktop
 pkgver=7.7.1
-pkgrel=2
+pkgrel=3
 pkgdesc='the complete unity 7 desktop, meta package'
 arch=('any')
 url='https://github.com/unity-arch/packages'
@@ -15,7 +15,7 @@ depends=('unity' 'unity-session' 'unity-settings-daemon' 'unity-greeter' 'ubuntu
          'indicator-messages' 'indicator-power' 'indicator-printers' 'indicator-session' 'indicator-sound'
          'unity-scope-home' 'unity-lens-applications' 'unity-lens-files'
          'unity-control-center' 'notify-osd' 'zeitgeist' 'polkit-gnome' 'gnome-keyring' 'xdg-user-dirs'
-         'nemo' 'xorg-server' 'dbus')
+         'nemo' 'xorg-server' 'dbus' 'gnome-screenshot')
 optdepends=('lightdm: display manager the greeter is written for'
             'yaru-gtk-theme: the newer yaru gtk theme (aur)'
             'yaru-icon-theme: the newer yaru icon theme (aur)'

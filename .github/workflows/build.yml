@@ -50,9 +50,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view repo >/dev/null 2>&1 ||
-            gh release create repo --title 'pacman repo' \
-              --notes 'Binary packages built from this repository. See the README for the pacman.conf entry.'
-          gh release upload repo repo/*.pkg.tar.zst \
+          # --repo avoids gh shelling out to git in the workspace, which is owned
+          # by "builder" at this point and trips git's dubious-ownership check
+          gh release view repo --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create repo --repo "$GITHUB_REPOSITORY" --title 'pacman repo' \
+              --notes 'Binary packages built from this repository. Install or update them with ./install.sh --prebuilt / --update.'
+          gh release upload repo --repo "$GITHUB_REPOSITORY" repo/*.pkg.tar.zst \
             repo/unity-arch.db repo/unity-arch.db.tar.gz \
             repo/unity-arch.files repo/unity-arch.files.tar.gz --clobber

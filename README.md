@@ -2,7 +2,7 @@
 
 Build and install the **Unity 7.7 desktop** on Arch Linux from source, with the
 **original Ubuntu look**: Ambiance/Radiance GTK themes, Humanity icons,
-DMZ-White cursors, the Ubuntu font, the warty wallpaper and the real
+DMZ-White cursors, the Ubuntu font, the Ubuntu 17.04 wallpaper and the real
 `unity-greeter` login screen.
 
 This repository is a complete, self-contained package set plus an installer that
@@ -14,10 +14,11 @@ LightDM, and can cleanly undo everything.
   │  Unity 7 for Arch Linux                                      │
   │                                                              │
   │  1) Install Unity 7 (build from source)                      │
-  │  2) Uninstall Unity 7                                        │
-  │  3) Build packages only (no desktop configuration)           │
-  │  4) Choose / change the login greeter                        │
-  │  5) Show status                                              │
+  │  2) Install / update from prebuilt packages (no compiling)   │
+  │  3) Uninstall Unity 7                                        │
+  │  4) Build packages only (no desktop configuration)           │
+  │  5) Choose / change the login greeter                        │
+  │  6) Show status                                              │
   │  q) Quit                                                     │
   └──────────────────────────────────────────────────────────────┘
 ```
@@ -36,7 +37,7 @@ LightDM, and can cleanly undo everything.
 | ubuntu-mono panel icons | `ubuntu-themes` |
 | DMZ-White / DMZ-Black cursors | `dmz-cursor-theme` (Debian source) |
 | Ubuntu font family | `fonts-ubuntu` |
-| warty-final-ubuntu.png wallpaper | `ubuntu-wallpapers` |
+| Ubuntu 17.04 wallpaper (`warty-final-ubuntu.png`, last Unity release) | `ubuntu-wallpapers` |
 | GTK2 + Murrine engine (for Ambiance GTK2 apps) | AUR recipes, vendored |
 
 Unity runs on **X11**. Your existing Wayland sessions (GNOME, Sway, ...) are not
@@ -49,7 +50,8 @@ touched and remain selectable.
 - An OpenGL-capable GPU (Intel, AMD or NVIDIA with the proprietary driver)
 - ~8–12 GB of free disk while building; 1–3 hours on a slow machine,
   about 40 minutes on a 12-core desktop
-- `sudo` (the installer prompts normally; nothing is stored)
+- `sudo` (the installer asks for your password **once** and keeps the sudo
+  ticket alive for the whole build, so a long install does not prompt again)
 
 ## Quick start
 
@@ -67,9 +69,14 @@ Pick **1) Install Unity 7**. The installer will:
 3. Record every package it installed in `/var/lib/unity7-arch/packages`.
 4. Install and configure LightDM, then let you **pick the greeter**.
    `unity-greeter` is the default; other installed LightDM greeters are listed too.
-5. Apply the classic theme defaults and verify the result.
+5. Apply the classic theme defaults, point the current user at the Ubuntu 17.04
+   wallpaper (17.04 was the last release that shipped Unity) and verify the result.
 
 Then reboot and choose **Unity** at the login screen.
+
+Prefer not to compile? `./install.sh --install --prebuilt` installs the same
+package set from the binary release in a few minutes. See
+[Fast install and updates](#fast-install-and-updates-no-compiling).
 
 ### Keeping your current display manager
 
@@ -89,6 +96,30 @@ Unity still appears in the session menu of GDM/SDDM. You just won't see
 ./install.sh --install --yes --greeter unity-greeter
 ./install.sh --install --yes --keep-dm
 ```
+
+## Fast install and updates (no compiling)
+
+The whole package set is also published as prebuilt binaries on the `repo`
+release of this repository. Use them to install in a few minutes, or to update
+later without rebuilding anything:
+
+```bash
+./install.sh --install --prebuilt   # install from the binary release
+./install.sh --update               # update installed packages only
+```
+
+Both actions download `unity-arch.db` plus the packages, compare versions with
+what is installed, preinstall any missing official Arch dependencies, and then
+let `pacman -U` upgrade only the packages that actually changed. Your config,
+themes and display-manager setup are left alone.
+
+The release URL can be pointed at a mirror or a local directory for testing:
+
+```bash
+UNITY7_ARCH_PREBUILT_URL=file:///srv/unity7-mirror ./install.sh --update
+```
+
+If you prefer the interactive menu, option **2** does the same thing.
 
 ## The greeter
 
@@ -149,7 +180,8 @@ state directory. It deliberately **does not** remove official dependency package
 Usage: ./install.sh [action] [options] [package...]
 
 Actions
-  -i, --install        build and install Unity 7
+  -i, --install        build and install Unity 7 from source
+  -U, --update         update installed packages from the prebuilt release
   -u, --uninstall      remove everything this script installed
   -b, --build          build/install packages, skip desktop configuration
   -g, --greeter        choose / change the LightDM greeter
@@ -158,6 +190,7 @@ Actions
 
 Options
   -y, --yes            assume yes, never prompt
+      --prebuilt       with --install, use prebuilt binaries (no compiling)
       --keep-dm        install without switching the display manager
       --greeter NAME   greeter to use (default: unity-greeter)
       --rebuild        rebuild packages even if already installed
@@ -181,6 +214,25 @@ pkgs/<name>/PKGBUILD    one directory per package, patches next to it
 logs/                   build logs (gitignored)
 repo/                   built packages (gitignored)
 ```
+
+## Customising the look
+
+`unity-control-center appearance` (System Settings → **Appearance**) is the
+main panel: it switches between **Ambiance** and **Radiance**, changes the icon
+colour set (Ubuntu Mono Dark/Light, Humanity), adjusts the launcher and picks a
+wallpaper. The Ubuntu 17.04 background (the last Unity-era default) is selected
+by the installer.
+
+For the rest of Unity's options use **CompizConfig Settings Manager**:
+
+```bash
+ccsm          # launcher, expo, scale, effects, window decorations
+```
+
+`ccsm` is installed with `compiz-ubuntu`. There is no `unity-tweak-tool` package
+for Arch; launcher autohide and icon size are in the Appearance panel, and the
+remaining Unity keys are readable with
+`gsettings list-recursively com.canonical.Unity`.
 
 ## Notes and known issues
 

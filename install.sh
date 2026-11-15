@@ -45,6 +45,8 @@ KEEP_DM=0
 REBUILD=0
 GREETER=
 INSTALL_PACKAGES=0
+PREBUILT=0
+SUDO_KEEPALIVE_PID=
 declare -a FILTER=()
 
 if [[ -t 1 ]]; then
@@ -64,7 +66,8 @@ ${B}unity7-arch${N} — Unity 7 for Arch Linux, built from source
 Usage: ./install.sh [action] [options] [package...]
 
 Actions (pick one; without one an interactive menu is shown):
-  -i, --install        build and install Unity 7
+  -i, --install        build and install Unity 7 from source
+  -U, --update         update installed packages from the prebuilt release
   -u, --uninstall      remove everything this script installed
   -b, --build          build packages, do not configure the desktop
   -g, --greeter        choose / change the LightDM greeter
@@ -73,6 +76,7 @@ Actions (pick one; without one an interactive menu is shown):
 
 Options:
   -y, --yes            assume yes, never prompt
+      --prebuilt       with --install, use prebuilt binaries (nothing is compiled)
       --keep-dm        install without switching the display manager
       --greeter NAME   greeter to use (default: unity-greeter)
       --rebuild        rebuild packages even if they are already installed
@@ -80,7 +84,9 @@ Options:
 
 Examples:
   ./install.sh                       # interactive menu
-  ./install.sh --install             # full install
+  ./install.sh --install             # full install, built from source
+  ./install.sh --install --prebuilt  # full install from the binary release
+  ./install.sh --update              # update in minutes, no compiling
   ./install.sh --install --keep-dm   # keep GDM/SDDM, only add the Unity session
   ./install.sh --build nux unity     # build just these packages
   ./install.sh --greeter lightdm-gtk-greeter
@@ -88,12 +94,29 @@ EOF
 }
 
 cleanup() {
+  stop_sudo_keepalive
   if [[ -n ${TMP:-} && -d ${TMP:-} ]]; then
     rm -rf -- "$TMP"
   fi
   return 0
 }
 trap cleanup EXIT
+
+stop_sudo_keepalive() {
+  if [[ -n ${SUDO_KEEPALIVE_PID:-} ]]; then
+    kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+    wait "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+    SUDO_KEEPALIVE_PID=
+  fi
+}
+
+start_sudo_keepalive() {
+  [[ -n ${SUDO_KEEPALIVE_PID:-} ]] && return 0
+  # Refreshing the ticket every 50s means a long build asks for the sudo
+  # password once instead of on every pacman -U of the ~45 packages.
+  ( while sleep 50; do sudo -n -v 2>/dev/null || exit 0; done ) </dev/null &
+  SUDO_KEEPALIVE_PID=$!
+}
 
 require_user() {
   (( EUID != 0 )) || die "Run this as your normal user, not as root (makepkg refuses to run as root)."
@@ -111,6 +134,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 require_sudo() {
   if sudo -n true 2>/dev/null; then
+    start_sudo_keepalive
     return 0
   fi
   msg "sudo is needed to install packages and write /etc"
@@ -119,6 +143,7 @@ require_sudo() {
   else
     sudo -v || die "sudo authentication failed"
   fi
+  start_sudo_keepalive
 }
 
 require_tools() {
@@ -277,6 +302,146 @@ build_packages() {
   done <<<"$order"
 
   msg "done: $built built, $skipped skipped"
+}
+
+# ------------------------------------------------------------ prebuilt update
+
+# Binary packages built by .github/workflows/build.yml and uploaded to a release
+# tagged "repo". Override for a fork or a local mirror.
+PREBUILT_BASE=${UNITY7_ARCH_PREBUILT_URL:-https://github.com/Sobserius/unity7-arch/releases/download/repo}
+PREBUILT_DB=$ROOT/repo/unity-arch.db
+declare -a PREBUILT_FILES=() PREBUILT_NAMES=()
+
+record_manifest_names() {
+  (( INSTALL_PACKAGES )) || return 0
+  sudo install -d -m 755 "$STATE_DIR"
+  local n
+  for n in "$@"; do
+    [[ -n $n ]] || continue
+    if ! sudo test -f "$MANIFEST" || ! sudo grep -qxF "$n" "$MANIFEST"; then
+      printf '%s\n' "$n" | sudo tee -a "$MANIFEST" >/dev/null
+    fi
+  done
+}
+
+db_desc() {
+  tar -xOzf "$PREBUILT_DB" --wildcards '*/desc' 2>/dev/null
+}
+
+fetch_prebuilt() {
+  have curl || die "curl is required to download prebuilt packages"
+  mkdir -p "$ROOT/repo"
+
+  msg "downloading the package database from GitHub"
+  if ! curl -fsSL --retry 3 --connect-timeout 15 -o "$PREBUILT_DB.part" \
+        "$PREBUILT_BASE/unity-arch.db"; then
+    rm -f "$PREBUILT_DB.part"
+    die "cannot download $PREBUILT_BASE (has the CI build published a release yet?). Build from source with ./install.sh --install"
+  fi
+  mv "$PREBUILT_DB.part" "$PREBUILT_DB"
+
+  mapfile -t PREBUILT_FILES < <(db_desc |
+    awk '/^%FILENAME%$/ { getline; print }' | sort -u)
+  mapfile -t PREBUILT_NAMES < <(db_desc |
+    awk '/^%NAME%$/ { getline; print }' | sort -u)
+  ((${#PREBUILT_FILES[@]})) ||
+    die "the downloaded database lists no packages (corrupt download?)"
+
+  local f
+  for f in "${PREBUILT_FILES[@]}"; do
+    if [[ -s $ROOT/repo/$f ]]; then
+      continue
+    fi
+    msg "fetch   $f"
+    curl -fsSL --retry 3 --connect-timeout 15 -o "$ROOT/repo/$f.part" \
+      "$PREBUILT_BASE/$f" || { rm -f "$ROOT/repo/$f.part"; die "download failed: $f"; }
+    mv "$ROOT/repo/$f.part" "$ROOT/repo/$f"
+  done
+}
+
+show_prebuilt_changes() {
+  local f name ver cur changes=0
+  for f in "${PREBUILT_FILES[@]}"; do
+    read -r name ver < <(pacman -Qp "$ROOT/repo/$f" 2>/dev/null) || continue
+    [[ -n $name && -n $ver ]] || continue
+    if cur=$(pacman -Q "$name" 2>/dev/null); then
+      cur=${cur#* }
+      [[ $cur == "$ver" ]] && continue
+      printf '  %supgrade%s  %-34s %s -> %s\n' "$Y" "$N" "$name" "$cur" "$ver"
+    else
+      printf '  %sinstall%s  %-34s %s\n' "$Y" "$N" "$name" "$ver"
+    fi
+    changes=$((changes + 1))
+  done
+  ((changes)) || msg "everything is already up to date"
+  return 0
+}
+
+# install official dependencies of the prebuilt set before pacman -U, because -U
+# does not fetch missing dependencies from the sync repos by itself
+install_prebuilt_deps() {
+  local meta n d
+  local -A ours=()
+  local -a deps=() external=() missing=()
+  meta=$(db_desc)
+
+  while IFS= read -r n; do
+    [[ -n $n ]] || continue
+    ours[${n%%[<>=]*}]=1
+  done < <(awk '
+    /^%NAME%$/     { getline; print }
+    /^%PROVIDES%$/ { while ((getline l) > 0 && l != "" && l !~ /^%/) print l }
+  ' <<<"$meta")
+
+  mapfile -t deps < <(awk '
+    /^%DEPENDS%$/ { while ((getline l) > 0 && l != "" && l !~ /^%/) print l }
+  ' <<<"$meta" | sort -u)
+
+  for d in "${deps[@]}"; do
+    [[ -n $d ]] || continue
+    [[ -n ${ours[${d%%[<>=]*}]:-} ]] && continue
+    external+=("$d")
+  done
+  ((${#external[@]})) || return 0
+
+  mapfile -t missing < <(pacman -T "${external[@]}" 2>/dev/null || true)
+  ((${#missing[@]})) || return 0
+
+  msg "installing ${#missing[@]} missing dependencies from the official repos"
+  sudo pacman -S --needed --noconfirm --asdeps "${missing[@]}" ||
+    die "could not install dependencies; run 'sudo pacman -Syu' and try again"
+}
+
+install_prebuilt_packages() {
+  local f
+  local -a pkgs=()
+  for f in "${PREBUILT_FILES[@]}"; do
+    pkgs+=("$ROOT/repo/$f")
+  done
+
+  install_prebuilt_deps
+
+  msg "installing ${#pkgs[@]} prebuilt packages"
+  sudo pacman -U --needed --noconfirm "${pkgs[@]}"
+  record_manifest_names "${PREBUILT_NAMES[@]}"
+}
+
+do_update() {
+  require_user
+  require_arch
+  require_tools
+  require_sudo
+  check_network
+  pkg_installed unity ||
+    die "Unity 7 is not installed; run ./install.sh --install --prebuilt"
+
+  msg "updating Unity 7 from the prebuilt release (nothing is compiled)"
+  fetch_prebuilt
+  show_prebuilt_changes
+  INSTALL_PACKAGES=1
+  install_prebuilt_packages
+  refresh_caches
+  msg "done"
 }
 
 # ------------------------------------------------------------------- desktop
@@ -454,7 +619,25 @@ switch_display_manager() {
   msg "LightDM enabled; the change takes effect on the next reboot"
 }
 
-apply_theme_defaults() {
+apply_user_defaults() {
+  local uri=file:///usr/share/backgrounds/warty-final-ubuntu.png
+  have gsettings || return 0
+  # The gschema override only changes the *default*; an explicit dconf value (set
+  # earlier from GNOME, or by picking another wallpaper) wins over it. Point the
+  # current user at the Unity era background (ubuntu 17.04, the last release
+  # that shipped unity) so the look is complete.
+  if ! gsettings get org.gnome.desktop.background picture-uri >/dev/null 2>&1; then
+    warn "no desktop session bus; leaving the wallpaper alone (the default is already set)"
+    return 0
+  fi
+  gsettings set org.gnome.desktop.background picture-uri "$uri" 2>/dev/null || true
+  gsettings set org.gnome.desktop.background picture-uri-dark "$uri" 2>/dev/null || true
+  gsettings set org.gnome.desktop.background picture-options 'zoom' 2>/dev/null || true
+  gsettings set org.gnome.desktop.screensaver picture-uri "$uri" 2>/dev/null || true
+  msg "wallpaper set to the Ubuntu 17.04 background"
+}
+
+refresh_caches() {
   msg "compiling schemas and caches"
   sudo glib-compile-schemas /usr/share/glib-2.0/schemas || warn "glib-compile-schemas failed"
   local icons=(Humanity Humanity-Dark ubuntu-mono-dark ubuntu-mono-light hicolor)
@@ -465,6 +648,11 @@ apply_theme_defaults() {
   done
   have fc-cache && sudo fc-cache -f >/dev/null 2>&1 || true
   have update-desktop-database && sudo update-desktop-database >/dev/null 2>&1 || true
+}
+
+apply_theme_defaults() {
+  refresh_caches
+  apply_user_defaults
 }
 
 verify_install() {
@@ -530,6 +718,11 @@ EOF
 }
 
 do_install() {
+  if (( PREBUILT )); then
+    do_install_prebuilt
+    return
+  fi
+
   require_user
   require_arch
   require_tools
@@ -547,7 +740,7 @@ ${B}Unity 7 for Arch Linux${N}
   packages : $count (built from source, dependency ordered)
   desktop  : Unity 7.7 + Compiz + Nux + indicators
   look     : Ambiance/Radiance, Humanity icons, DMZ-White cursors,
-             Ubuntu font, warty wallpaper, original unity-greeter
+             Ubuntu font, 17.04 wallpaper, original unity-greeter
   install  : ${TARGET_PACKAGES[*]}
   disk     : ~8-12 GB while building
   time     : roughly 1-3 hours on a modern machine
@@ -559,7 +752,49 @@ EOF
   INSTALL_PACKAGES=1
   setup_state
   build_packages
+  finish_install
+}
 
+do_install_prebuilt() {
+  require_user
+  require_arch
+  require_tools
+  require_sudo
+  check_network
+
+  cat <<EOF
+${B}Unity 7 for Arch Linux${N}
+
+  packages : all Unity packages from the prebuilt GitHub release
+  source   : $PREBUILT_BASE
+  desktop  : Unity 7.7 + Compiz + Nux + indicators
+  look     : Ambiance/Radiance, Humanity icons, DMZ-White cursors,
+             Ubuntu font, 17.04 wallpaper, original unity-greeter
+  install  : ${TARGET_PACKAGES[*]}
+  time     : a few minutes (nothing is compiled)
+
+EOF
+
+  confirm "Continue?" || die "cancelled"
+
+  INSTALL_PACKAGES=1
+  setup_state
+  fetch_prebuilt
+  show_prebuilt_changes
+  install_prebuilt_packages
+  finish_install
+}
+
+# menu entry: update an existing install, otherwise do a prebuilt install
+do_prebuilt() {
+  if pkg_installed unity; then
+    do_update
+  else
+    do_install_prebuilt
+  fi
+}
+
+finish_install() {
   msg "installing desktop meta packages"
   local p missing_targets=()
   for p in "${TARGET_PACKAGES[@]}"; do
@@ -741,10 +976,11 @@ show_menu() {
 ${B}Unity 7 for Arch Linux${N}
 
   1) Install Unity 7 (build from source)
-  2) Uninstall Unity 7
-  3) Build packages only
-  4) Choose / change the login greeter
-  5) Show status
+  2) Install / update from prebuilt packages (no compiling)
+  3) Uninstall Unity 7
+  4) Build packages only
+  5) Choose / change the login greeter
+  6) Show status
   q) Quit
 EOF
 }
@@ -752,13 +988,14 @@ EOF
 menu() {
   local choice
   show_menu
-  read -rp $'\nChoose [1-5, q]: ' choice
+  read -rp $'\nChoose [1-6, q]: ' choice
   case $choice in
     1) ACTION=install ;;
-    2) ACTION=uninstall ;;
-    3) ACTION=build ;;
-    4) ACTION=greeter ;;
-    5) ACTION=status ;;
+    2) ACTION=prebuilt ;;
+    3) ACTION=uninstall ;;
+    4) ACTION=build ;;
+    5) ACTION=greeter ;;
+    6) ACTION=status ;;
     q|Q) exit 0 ;;
     *) die "invalid choice: $choice" ;;
   esac
@@ -769,10 +1006,12 @@ menu() {
 while (($#)); do
   case $1 in
     -i|--install)   ACTION=install ;;
+    -U|--update)    ACTION=update ;;
     -u|--uninstall) ACTION=uninstall ;;
     -b|--build)     ACTION=build ;;
     -s|--status)    ACTION=status ;;
     -y|--yes)       ASSUME_YES=1 ;;
+    --prebuilt)     PREBUILT=1 ;;
     --keep-dm)      KEEP_DM=1 ;;
     --rebuild)      REBUILD=1 ;;
     --greeter=*)    GREETER=${1#*=}; [[ -n $ACTION ]] || ACTION=greeter ;;
@@ -800,6 +1039,10 @@ if [[ -z $ACTION && -n $GREETER ]]; then
   ACTION=greeter
 fi
 
+if [[ -z $ACTION && $PREBUILT == 1 ]]; then
+  ACTION=install
+fi
+
 if [[ -z $ACTION ]]; then
   [[ -t 0 ]] || die "no action given and stdin is not a terminal (try --install --yes)"
   menu
@@ -807,6 +1050,8 @@ fi
 
 case $ACTION in
   install)   do_install ;;
+  prebuilt)  do_prebuilt ;;
+  update)    do_update ;;
   uninstall) do_uninstall ;;
   build)     require_user; require_arch; require_tools; require_sudo
              INSTALL_PACKAGES=0; build_packages ;;
