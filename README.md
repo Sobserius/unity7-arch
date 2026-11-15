@@ -61,6 +61,10 @@ cd unity7-arch
 ./install.sh
 ```
 
+Already cloned it before? Run **`git pull`** first and start the installer from
+that directory — an old checkout has old packages and an old menu, so fixes like
+the 17.04 wallpaper or the update action will not be there.
+
 Pick **1) Install Unity 7**. The installer will:
 
 1. Read every `pkgs/*/PKGBUILD`, resolve the real dependency graph with `tsort`
