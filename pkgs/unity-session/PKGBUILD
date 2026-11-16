@@ -2,7 +2,7 @@
 
 pkgname=unity-session
 pkgver=49.4
-pkgrel=6
+pkgrel=7
 _commit=32c2fd569b0d51e40bd3ec875e77f0261a744d03
 pkgdesc='session files and systemd targets for the unity desktop'
 arch=('any')
@@ -16,10 +16,20 @@ optdepends=('nemo: desktop icons and the change background action'
             'lightdm: the shipped lightdm config selects unity as default session')
 source=("git+https://github.com/unity-arch/unity-session.git#commit=${_commit}"
         'unity-session.sh'
-        'polkit-gnome-authentication-agent-1.desktop')
+        'polkit-gnome-authentication-agent-1.desktop'
+        'bounded-session-stop.patch')
 sha256sums=('SKIP'
             '6246fe74a107dba8f004c9be82fcd065f958116326d4b81ba128bac0505a206f'
-            '4328e6e85771ac3db43edca18479a467135ff9d265183eff67d21a887e3572a6')
+            '4328e6e85771ac3db43edca18479a467135ff9d265183eff67d21a887e3572a6'
+            '4c7ea727ac65014d6d17fce2a4e6ded76a3861c5751a994ae43da8a0de796cde')
+
+prepare() {
+  cd "${pkgname}"
+  # upstream waits without a timeout for graphical-session-pre.target to stop, so a
+  # single unit stuck in its stop job keeps the X session (and the wallpaper) on
+  # screen for as long as that unit takes; bound both stop calls
+  patch -Np1 -i "${srcdir}/bounded-session-stop.patch"
+}
 
 package() {
   cd "${pkgname}"

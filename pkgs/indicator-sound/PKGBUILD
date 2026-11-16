@@ -5,7 +5,7 @@ _ver=12.10.2
 _snap=18.10.20180612
 _deb=0ubuntu10
 pkgver=${_ver}.${_snap}
-pkgrel=1
+pkgrel=2
 pkgdesc='indicator for volume and the mpris media players'
 arch=('x86_64')
 url='https://launchpad.net/indicator-sound'
@@ -16,10 +16,12 @@ makedepends=('glib2-devel' 'cmake' 'cmake-extras' 'intltool' 'vala' 'gobject-int
 # ubuntu archive tarballs, they come off a cdn where git.launchpad.net doesn't
 source=("https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/${pkgname}/${_ver}+${_snap}-${_deb}/${pkgname}_${_ver}+${_snap}.orig.tar.gz"
         "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/${pkgname}/${_ver}+${_snap}-${_deb}/${pkgname}_${_ver}+${_snap}-${_deb}.diff.gz"
-        'drop-test-only-deps.patch')
+        'drop-test-only-deps.patch'
+        'fast-stop.conf')
 sha256sums=('d37f5db1a683be45a6f6e515603745183867edb984ca06905e121c7d3432dfc2'
             'f435f98f2e7da6a98310dcb68c61f2ac9a0bad5d174bc4af961dad7aaf5e2d50'
-            '1c976bf8cc56dc0585213daa6ef0892db87a146b5cd75528c9a81aadb3754ad8')
+            '1c976bf8cc56dc0585213daa6ef0892db87a146b5cd75528c9a81aadb3754ad8'
+            '0efaa3c95ea1af0ba67a1bdd7f457d559126bfc108c8c55b5d9e12de035b68e0')
 # the orig tarball has no top level directory
 noextract=("${pkgname}_${_ver}+${_snap}.orig.tar.gz")
 
@@ -61,6 +63,10 @@ build() {
 package() {
   cd "${pkgname}"
   make -C build DESTDIR="${pkgdir}" install
+  # the Vala finalize path can hang for ~50s during logout and hold
+  # graphical-session-pre.target (and the X session) hostage; cap its stop time
+  install -Dm644 "${srcdir}/fast-stop.conf" \
+    "${pkgdir}/usr/lib/systemd/user/indicator-sound.service.d/fast-stop.conf"
   # upstart is gone, the systemd user unit is what unity-panel-service wants
   rm -rf "${pkgdir}/usr/share/upstart"
   # pkla is the old polkit local authority format, arch's polkit only reads the js

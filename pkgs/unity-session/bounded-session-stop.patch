@@ -1,0 +1,26 @@
+--- a/run-systemd-session
++++ b/run-systemd-session
+@@ -5,7 +5,9 @@
+ dbus-update-activation-environment --systemd GNOME_DESKTOP_SESSION_ID=this-is-deprecated
+ 
+ # stop any lingering active units from a previous session
+-systemctl --user stop graphical-session.target graphical-session-pre.target
++# (bounded, so a unit that never finishes its stop job cannot delay the next
++# login)
++timeout 5 systemctl --user stop graphical-session.target graphical-session-pre.target || true
+ 
+ # robustness: if the previous graphical session left some failed units,
+ # reset them so that they don't break this startup
+@@ -33,5 +35,10 @@
+ 
+ dbus-update-activation-environment --systemd GNOME_DESKTOP_SESSION_ID=
+ 
+-# Delay killing the X server until all graphical units stopped
+-systemctl --user stop graphical-session-pre.target
++# Delay killing the X server until all graphical units stopped, but never let a
++# hung stop job keep the display manager from showing the greeter.  In particular
++# indicator-sound can block for ~50s in its Vala finalize path while tearing down
++# its D-Bus objects, and graphical-session-pre.target waits for it because of the
++# synthesized After= dependencies above.  If the timeout fires the stop job keeps
++# running in the background; only our wait for it is cut short.
++timeout 5 systemctl --user stop graphical-session-pre.target || true
